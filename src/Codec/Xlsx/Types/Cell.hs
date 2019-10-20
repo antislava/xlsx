@@ -25,7 +25,7 @@ import Control.DeepSeq (NFData)
 import Data.Default
 import Data.Map (Map)
 import qualified Data.Map as M
-import Data.Maybe (catMaybes, listToMaybe)
+import Data.Maybe (catMaybes, listToMaybe, maybe)
 import Data.Monoid ((<>))
 import Data.Text (Text)
 import GHC.Generics (Generic)
@@ -57,6 +57,12 @@ instance NFData CellFormula
 -- | formula type with type-specific options
 data FormulaExpression
   = NormalFormula Formula
+  -- | ArrayFormula Formula
+  -- | ArrayFormula { _afoExpression :: Formula }
+  | ArrayFormula
+    { _afoRef :: CellRef
+    , _afoExpression :: Formula
+    }
   | SharedFormula SharedFormulaIndex
   deriving (Eq, Show, Generic)
 instance NFData FormulaExpression
@@ -127,6 +133,15 @@ formulaDataFromCursor cur = do
       d| d == defaultFormulaType -> do
         formula <- fromCursor cur
         return (NormalFormula formula, Nothing)
+      "array" -> do
+        formula <- fromCursor cur
+        refMay <- maybeAttribute "ref" cur
+        -- let ref = fromMaybe "MISSING REF!" refMay
+        ref <- maybe
+          (fail "Missing ref attribute for array formula")
+          return
+          refMay
+        return (ArrayFormula (CellRef ref) formula, Nothing)
       "shared" -> do
         let expr = listToMaybe $ fromCursor cur
         ref <- maybeAttribute "ref" cur
@@ -161,6 +176,7 @@ instance ToElement CellFormula where
       (formulaEl, fType) =
         case _cellfExpression of
           NormalFormula f -> (toElement nm f, defaultFormulaType)
+          ArrayFormula _ f -> (toElement nm f, "array")
           SharedFormula si -> (leafElement nm ["si" .= si], "shared")
 
 instance ToAttrVal SharedFormulaIndex where

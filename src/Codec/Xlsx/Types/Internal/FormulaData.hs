@@ -32,8 +32,16 @@ instance FromXenoNode FormulaData where
     (expr, shared) <-
       case t of
         d | d == defaultFormulaType -> do
-            formula <- contentX n
-            return (NormalFormula $ Formula formula, Nothing)
+          formula <- contentX n
+          return (NormalFormula $ Formula formula, Nothing)
+        "array" -> do
+          ref <-
+            maybe
+              (Left "missing ref attribute for array formula")
+              return
+              mRef
+          formula <- contentX n
+          return (ArrayFormula ref $ Formula formula, Nothing)
         "shared" -> do
           si <-
             maybe
